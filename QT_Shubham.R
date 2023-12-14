@@ -13,9 +13,12 @@ library(ggplot2)
 library(ggthemes)
 library(patchwork)
 
+#-----------------------IMPORTING DATA -------
 raw_data <- read_excel("C:/Users/shubh/OneDrive/Desktop/QT/Test/W06586-XLS-ENG.xls")
 names(raw_data)
+#-----------------------IMPORTING DATA -------
 
+#-----------------------DATA CLEANSING-------
 #Considering the relevant columns
 raw_data <- raw_data[-c(0,1, 2), ]
 
@@ -36,6 +39,8 @@ summary(raw_data)
 temp=data.frame(raw_data)
 sapply(raw_data, typeof)  
 typeof(temp)
+#-----------------------DATA CLEANSING-------
+
 
 #-----------------------CHECK FOR MISSINGDATA AND DATA CLEANSING-------
 # Check for missing data in each column of raw_data
@@ -50,7 +55,6 @@ print("No missing data found")
 
 
 #-----------------------CHECK FOR MISSINGDATA AND DATA CLEANSING-------
-
 
 #-----------------------SCATTERPLOT TO UNDERSTAND THE EFFECT OF CARAT ON PRICE FOR DIFFERENT WHOLESLALERS-----------
 
@@ -74,7 +78,7 @@ legend("topright", # place legend at top right corner of the plot
 #-----------------------GGPLOT TO UNDERSTAND THE EFFECT OF VARIOUS CATEGORICAL VARIABLES ON PRICE--------
 
 ggplot(
-  data = temp,
+  data = raw_data,
   mapping = aes(x = Cut, y=Price, color=Cut)
 ) +
   geom_point()
@@ -104,15 +108,6 @@ ggplot(
 
 
 
-
-
-
-
-
-
-
-
-
 Model_all = lm(Price ~ Carat + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification) + factor(Polish) + factor(Symmetry) + Wholesaler, data = raw_data)
 View(Model_all)
 
@@ -121,22 +116,21 @@ plot(raw_data$Price, Model_all$fitted.values, col = "red", pch = 19, cex.lab = 1
 
 summary(Model_all)
 Model_all.StdRes = rstandard(Model_all)
-abline(Model_all, col = "red", lwd=1.5)
-anova(Model_all)
-
+# Extract the coefficient matrix
+coef_matrix <- coef(Model_all)
+We can see that the coefficient of Symmetry(I) is NA, this shows that Model does 
 #Ignore this section
-# # Define new observation
 # Define new observation
-# Profdata <- data.frame(
-#   Carat = as.double(0.9),
-#   Colour = factor("J", levels = levels(as.factor(raw_data$Colour))),
-#   Clarity = factor("SI2", levels = levels(raw_data$Clarity)),
-#   Cut = factor("V", levels = levels(raw_data$Cut)),
-#   Certification = factor("GIA", levels = levels(raw_data$Certification)),
-#   Polish = factor("B", levels = levels(raw_data$Polish)),
-#   Symmetry = factor("V", levels = levels(raw_data$Symmetry)),
-#   Wholesaler = as.numeric(2)
-# )
+Profdata <- data.frame(
+  Carat = as.double(0.9),
+  Colour = factor("J", levels = levels(as.factor(raw_data$Colour))),
+  Clarity = factor("SI2", levels = levels(raw_data$Clarity)),
+  Cut = factor("V", levels = levels(raw_data$Cut)),
+  Certification = factor("GIA", levels = levels(raw_data$Certification)),
+  Polish = factor("B", levels = levels(raw_data$Polish)),
+  Symmetry = factor("V", levels = levels(raw_data$Symmetry)),
+  Wholesaler = as.numeric(2)
+)
 
 # Profdata2 <- data.frame(Carat = as.double(0.9), Colour=factor("J"), Clarity = factor("SI2"), Cut=factor("V"), Certification= factor("GIA") , Polish = factor("B"), Symmetry = factor("V"), Wholesaler = as.numeric(2))
 # Profdata3 <- data.frame(Carat = as.double(0.9), Colour=factor("J"), Clarity = "SI2", Cut="V", Certification= "GIA" , Polish = "B", Symmetry = "V", Wholesaler = as.numeric(2))
