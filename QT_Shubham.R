@@ -4,6 +4,8 @@
 # install.packages("data.table")
 # install.packages("dplyr")
 # install.packages("tidyr")
+# install.packages("car")
+
 library(readxl)
 library(mltools)
 library(data.table)
@@ -12,13 +14,20 @@ library(tidyr)
 library(ggplot2)
 library(ggthemes)
 library(patchwork)
+library(MASS)
+library(car)
+library(ggplot2)
+library(ggthemes)
+library(patchwork)
+library(dplyr)
+
+
 
 #-----------------------IMPORTING DATA -------
 raw_data <- read_excel("C:/Users/shubh/OneDrive/Desktop/QT/Test/W06586-XLS-ENG.xls")
-names(raw_data)
 #-----------------------IMPORTING DATA -------
 
-#-----------------------DATA CLEANSING-------
+#-----------------------CHECK FOR MISSINGDATA AND DATA CLEANSING-------
 #Considering the relevant columns
 raw_data <- raw_data[-c(0,1, 2), ]
 
@@ -27,22 +36,20 @@ colnames(raw_data) <- raw_data[1, ]
 
 # Remove the first row
 raw_data <- raw_data[-1, ]
-# Convert 'Carat' to numeric in the original data frame
-raw_data$Carat <- as.numeric(as.character(raw_data$Carat))
-raw_data$Wholesaler <- as.numeric(as.character(raw_data$Wholesaler))
 
+# Find negative numbers No negative numbers observed in our Price Column
+negative_numbers_price <- raw_data[raw_data$Price < 0, ]
+
+# Find negative numbers No negative numbers observed in our Carat Column
+negative_numbers_carat <- raw_data[raw_data$Carat < 0, ]
 
 names(raw_data)
+
 summary(raw_data)
 #View(raw_data)
 # This will return the type of each column in the dataframe
-temp=data.frame(raw_data)
 sapply(raw_data, typeof)  
-typeof(temp)
-#-----------------------DATA CLEANSING-------
 
-
-#-----------------------CHECK FOR MISSINGDATA AND DATA CLEANSING-------
 # Check for missing data in each column of raw_data
 missing_data <- sapply(raw_data, function(x) sum(is.na(x)))
 
@@ -51,10 +58,9 @@ print(missing_data)
 
 print("No missing data found")
 
-
-
-
 #-----------------------CHECK FOR MISSINGDATA AND DATA CLEANSING-------
+
+#--------EDA STARTS FROM HERE
 
 #-----------------------SCATTERPLOT TO UNDERSTAND THE EFFECT OF CARAT ON PRICE FOR DIFFERENT WHOLESLALERS-----------
 
@@ -75,76 +81,225 @@ legend("topright", # place legend at top right corner of the plot
 
 #-----------------------SCATTERPLOT TO UNDERSTAND THE EFFECT OF CARAT ON PRICE FOR DIFFERENT WHOLESLALERS-----------
 
-#-----------------------GGPLOT TO UNDERSTAND THE EFFECT OF VARIOUS CATEGORICAL VARIABLES ON PRICE--------
+#------Violin plot of Carat Vs Wholesale----
+summary_data <- raw_data %>%
+  group_by(Wholesaler) %>%
+  summarise(min_value = min(Carat), max_value = max(Carat))
+
+table_plot <- summary_data %>%
+  gt() %>%
+  tab_spanner(label = "Carat", columns = c(min_value, max_value))
+
+table_plot
 
 ggplot(
   data = raw_data,
-  mapping = aes(x = Cut, y=Price, color=Cut)
-) +
-  geom_point()
+  mapping = aes(x = as.numeric(Carat), y =as.factor(Wholesaler), fill =as.factor(Wholesaler))) +
+  geom_violin(width = 1.5)+
+  labs(title = "Violin plot of Carat Vs Wholesaler",  x = "Carat", y = "Prices", color = "Species")+
+  theme_bw()+
+  scale_fill_brewer(palette="Set1")
+coord_flip()
+#------Violin plot of Carat Vs Wholesale----
 
+#------Filtering raw_data Data according to wholesaler-----
+library(dplyr)
+Wholesaler_1_data <- raw_data %>% filter(Wholesaler == 1)
+Wholesaler_2_data <- raw_data %>% filter(Wholesaler == 2)
+Wholesaler_3_data <- raw_data %>% filter(Wholesaler == 3)
+#------Filtering raw_data Data according to wholesaler-----
 
-ggplot(
-  data = raw_data,
-  mapping = aes(x = Clarity, y=Price, color=Clarity)
-) +
-  geom_point()
+#--------Start with ML Modelling
 
-ggplot(
-  data = raw_data,
-  mapping = aes(x = Polish, y=Price, color=Polish)
-) +
-  geom_point()
+#-----------------------SELECING A BASIC MULTIPLE LINEAR REGRESSION MODEL--------
 
-ggplot(
-  data = raw_data,
-  mapping = aes(x = Clarity, y=Price)
-) +
-  geom_boxplot(fill="steelblue")
+# Fit your initial model
+initial_model <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification) + factor(Polish) + factor(Symmetry) + factor(Wholesaler), data = raw_data)
 
-
-
-#-----------------------GGPLOT TO UNDERSTAND THE EFFECT OF VARIOUS CATEGORICAL VARIABLES ON PRICE--------
+# Print the summary of the final model
+print(summary(initial_model))
 
 
 
-Model_all = lm(Price ~ Carat + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification) + factor(Polish) + factor(Symmetry) + Wholesaler, data = raw_data)
-View(Model_all)
-
-#Plotting original vs predicted value of Price
-plot(raw_data$Price, Model_all$fitted.values, col = "red", pch = 19, cex.lab = 1.5, xlab = "Actual Price", ylab = "Predicted Price", main = "Actual Price vs Predicted Price")
-
-summary(Model_all)
-Model_all.StdRes = rstandard(Model_all)
 # Extract the coefficient matrix
-coef_matrix <- coef(Model_all)
-We can see that the coefficient of Symmetry(I) is NA, this shows that Model does 
-#Ignore this section
-# Define new observation
-Profdata <- data.frame(
-  Carat = as.double(0.9),
-  Colour = factor("J", levels = levels(as.factor(raw_data$Colour))),
-  Clarity = factor("SI2", levels = levels(raw_data$Clarity)),
-  Cut = factor("V", levels = levels(raw_data$Cut)),
-  Certification = factor("GIA", levels = levels(raw_data$Certification)),
-  Polish = factor("B", levels = levels(raw_data$Polish)),
-  Symmetry = factor("V", levels = levels(raw_data$Symmetry)),
-  Wholesaler = as.numeric(2)
+R_sq_value = summary(initial_model)$adj.r.squared
+print(R_sq_value)
+#Plotting original vs predicted value of Price
+plot(raw_data$Price, initial_model$fitted.values, col = "red", pch = 19, cex.lab = 1.5, xlab = "Actual Price", ylab = "Predicted Price", main = "Actual Price vs Predicted Price")
+
+# Extract the coefficient matrix
+coef_matrix <- coef(initial_model)
+
+abline(a = 0, b = 1, col = "black", lty = 5)
+#-----------------------SELECING A BASIC BEST MULTIPLE LINEAR REGRESSION MODEL--------
+
+#-----------------------ANOVA TEST-------
+print(paste("Adjusted R Square Value of Original Model: ", R_sq_value))
+anova(initial_model)
+
+#As seen from above results removing features Polish and Symmetry did not much significance as compared to other features
+#hence we can remove these features 
+
+after_anova_model <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification)   + factor(Wholesaler), data = raw_data)
+
+summary(after_anova_model)$adj.r.squared
+anova(after_anova_model)
+
+
+#As seen from above results removing features Polish and Symmetry did not result in much depreciation in Adjusted Rsqaure Value
+#We can use this model going further 
+
+
+#-----------------------ANOVA TEST-------
+
+#-----------------------TEST FOR MULTICOLLINEARITY-----------------
+#High Variance Inflation Factor (VIF) values indicate multicollinearity, which means that some predictor variables in your model are highly correlated with each other
+#Here The Carat and Wholesaler variables have high VIF values (7.27 and 3.54 respectively), indicating they have strong multicollinearity with other predictor variables in your model.
+
+vif(lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification)   + factor(Wholesaler), data = raw_data)
 )
 
-# Profdata2 <- data.frame(Carat = as.double(0.9), Colour=factor("J"), Clarity = factor("SI2"), Cut=factor("V"), Certification= factor("GIA") , Polish = factor("B"), Symmetry = factor("V"), Wholesaler = as.numeric(2))
-# Profdata3 <- data.frame(Carat = as.double(0.9), Colour=factor("J"), Clarity = "SI2", Cut="V", Certification= "GIA" , Polish = "B", Symmetry = "V", Wholesaler = as.numeric(2))
-# 
-# View(Profdata)
-# View(Profdata2)
-# View(Profdata3)
-# # Use the model to predict the response value for the new observation
-# 
-# predict(Model_all, newdata = Profdata)
-# predict(Model_all, newdata = Profdata2)
-# predict(Model_all, newdata = Profdata3)
-# 
-# # Print the levels of the 'Colour' column
-# print(levels(raw_data$Colour))
-# # Print the levels of the 'Clarity' column
-# print(levels(raw_data$Clarity))
+#-----------------------TEST FOR MULTICOLLINEARITY-------
+
+#-----------------------AIC ANALYSIS OF COMPLETE MODEL-------
+# Perform stepwise model selection
+final_model <- stepAIC(after_anova_model, direction = "both")
+summary(final_model)$adj.r.squared
+#The Min AIC value is achieved when we remove CUT variable, hence we will try to understand the impact of removing these features on Adjusted sq
+#-----------------------AIC ANALYSIS OF COMPLETE MODEL-------
+
+#-----------------------SIMPLE LINEAR REGRESSION CUT VS PRICE-------
+
+Test_model_cut=lm(Price ~ factor(Cut), data = raw_data)
+summary(Test_model_cut)$adj.r.squared
+plot(raw_data$Price, Test_model_cut$fitted.values, col = "red", pch = 19, cex.lab = 1.5, xlab = "Actual Price", ylab = "Predicted Price CLARITY", main = "Actual Price vs Predicted Price")
+
+
+# As We can see that the Adjusted R-squared value of ml model Polish vs Price :  0.1090375 which is very low compared to actual model which is 0.985
+# and the 2nd Lowest AIC value is of CUT, hence let us try to make a model without cut and see its Rsq Value
+
+# Fit your initial model
+model_iter1 <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Certification) + factor(Wholesaler), data = raw_data)
+summary(model_iter1)$adj.r.squared
+
+coef(model_iter1)
+
+#As we can see that Adjusted Rsq Value is 0.9841846 which is lesser than the previous model
+#hence we will not remove the CUT feature from model as removing the the CUT feature is increading error in the model
+#-----------------------SIMPLE LINEAR REGRESSION CUT VS PRICE-------
+###########################################################################################
+#-----------------------IMPROVING THE MODEL BY CLUBBING MULTIPLE FEATURES DATA FORMATION-------
+
+summary(final_model)$adj.r.squared
+summary(final_model)
+# Upon analysis of the summary data we find out that a few features of the model have similar coefficient value
+# therefore we will now club these values 
+
+# F=G->FG       | Colour
+# VS1=VS2->VS12 | Clarity
+# I=V=X->IVX    | Cut
+new_data=raw_data
+
+new_data$Colour <- ifelse(new_data$Colour %in% c("F", "G"), "FG", new_data$Colour)
+
+new_data$Clarity <- ifelse(new_data$Clarity  %in% c("VS1", "VS2"), "VS12", new_data$Clarity)
+
+new_data$Cut <- ifelse(new_data$Cut %in% c("I", "V", "X"), "IVX", new_data$Cut)
+
+#-----------------------IMPROVING THE MODEL BY CLUBBING MULTIPLE FEATURES DATA FORMATION-------
+
+
+#-----------------------NEW-CHECK FOR MISSINGDATA AND DATA CLEANSING-------
+# Check for missing data in each column of new_data
+missing_data_new <- sapply(new_data, function(x) sum(is.na(x)))
+
+# Print the result
+print(missing_data_new)
+
+print("No missing data found")
+
+
+
+
+#-----------------------NEW-CHECK FOR MISSINGDATA AND DATA CLEANSING-------
+
+#--------EDA STARTS
+
+
+#--------Start with ML Modelling
+
+#-----------------------NEW-SELECING A BASIC MULTIPLE LINEAR REGRESSION MODEL--------
+
+# Fit your initial model
+initial_model_new <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification) + factor(Polish) + factor(Symmetry) + factor(Wholesaler), data = new_data)
+
+# Print the summary of the final model
+print(summary(initial_model_new))
+
+
+
+# Extract the coefficient matrix
+R_sq_value_new = summary(initial_model_new)$adj.r.squared
+
+#Plotting original vs predicted value of Price
+plot(new_data$Price, initial_model_new$fitted.values, col = "red", pch = 19, cex.lab = 1.5, xlab = "Actual Price", ylab = "Predicted Price", main = "Actual Price vs Predicted Price")
+
+# Extract the coefficient matrix
+coef_matrix <- coef(initial_model_new)
+
+#-----------------------NEW-SELECING A BASIC BEST MULTIPLE LINEAR REGRESSION MODEL--------
+
+#-----------------------NEW-ANOVA TEST-------
+print(paste("Adjusted R Square Value of Initial Model: ", R_sq_value_new))
+anova(initial_model_new)
+
+#As seen from above results removing features Polish and Symmetry did not much significance as compared to other features
+#hence we can remove these features 
+
+after_anova_model_new <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Cut) + factor(Certification)   + factor(Wholesaler), data = new_data)
+
+summary(after_anova_model_new)$adj.adj.r.squared
+anova(after_anova_model_new)
+
+
+#As seen from above results removing features Polish and Symmetry did not result in much depreciation in Adjusted Rsqaure Value
+#We can use this model going further 
+
+
+#-----------------------NEW-ANOVA TEST-------
+
+#-----------------------NEW-TEST FOR MULTICOLLINEARITY-----------------
+#High Variance Inflation Factor (VIF) values indicate multicollinearity, which means that some predictor variables in your model are highly correlated with each other
+#Here The Carat and Wholesaler variables have high VIF values (7.27 and 3.54 respectively), indicating they have strong multicollinearity with other predictor variables in your model.
+
+vif(after_anova_model_new)
+
+#-----------------------NEW-TEST FOR MULTICOLLINEARITY-------
+
+#-----------------------NEW-AIC ANALYSIS OF COMPLETE MODEL-------
+# Perform stepwise model selection
+final_model_new <- stepAIC(after_anova_model, direction = "both")
+summary(final_model_new)$adj.r.squared
+#The Min AIC value is achieved when we remove CUT variable, hence we will try to understand the impact of removing these features on Adjusted sq
+#-----------------------NEW-AIC ANALYSIS OF COMPLETE MODEL-------
+
+#-----------------------NEW-SIMPLE LINEAR REGRESSION CUT VS PRICE-------
+
+Test_model_cut_new=lm(Price ~ factor(Cut), data = new_data)
+summary(Test_model_cut_new)$adj.r.squared
+plot(new_data$Price, Test_model_cut_new$fitted.values, col = "red", pch = 19, cex.lab = 1.5, xlab = "Actual Price", ylab = "Predicted Price CLARITY", main = "Actual Price vs Predicted Price")
+
+
+# As We can see that the Adjusted R-squared value of ml model Polish vs Price :  0.1090375 which is very low compared to actual model which is 0.985
+# and the 2nd Lowest AIC value is of CUT, hence let us try to make a model without cut and see its Rsq Value
+
+# Fit your initial model
+model_iter1_new <- lm(as.numeric(Price) ~ as.numeric(Carat) + factor(Colour) + factor(Clarity) + factor(Certification) + factor(Wholesaler), data = new_data)
+summary(model_iter1_new)$adj.r.squared
+
+coef(model_iter1_new)
+
+#As we can see that Adjusted Rsq Value is 0.9841846 which is lesser than the previous model
+#hence we will not remove the CUT feature from model as removing the the CUT feature is increading error in the model
+
+#-----------------------NEW-SIMPLE LINEAR REGRESSION CUT VS PRICE-------
